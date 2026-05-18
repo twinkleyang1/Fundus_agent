@@ -1,0 +1,1 @@
+from fundus_agents.quality.quality_agent import QualityAgent
