@@ -66,3 +66,42 @@ def test_quality_agent_reports_issues():
     report = agent.assess(f_img)
     assert isinstance(report.score, float)
     assert 0.0 <= report.score <= 1.0
+
+
+def test_quality_agent_rejects_uniform_blurry_image():
+    agent = QualityAgent()
+    img = Image.new("RGB", (400, 400), color=(128, 80, 60))
+    f_img = FundusImage(image=img, path="test.jpg")
+    report = agent.assess(f_img)
+    # Uniform image should have very low Laplacian variance -> blur issue
+    assert not report.passed
+    assert any("blur" in issue for issue in report.issues)
+
+
+def test_quality_agent_rejects_too_dark_image():
+    agent = QualityAgent()
+    img = make_test_image()
+    arr = np.array(img, dtype=np.float32)
+    arr *= 0.05  # make very dark
+    img = Image.fromarray(arr.astype(np.uint8))
+    f_img = FundusImage(image=img, path="test.jpg")
+    report = agent.assess(f_img)
+    assert not report.passed
+    assert any("dark" in issue for issue in report.issues)
+
+
+def test_quality_agent_rejects_overexposed_image():
+    agent = QualityAgent()
+    img = make_test_image()
+    arr = np.array(img, dtype=np.float32)
+    # Apply overexposure only to the fundus region; zero out background
+    # noise that would otherwise dilute the mean brightness
+    gray_ref = np.array(img.convert("L"), dtype=np.float32)
+    fg = gray_ref > 10
+    arr[fg] = np.clip(arr[fg] * 5, 0, 255)
+    arr[~fg] = 0
+    img = Image.fromarray(arr.astype(np.uint8))
+    f_img = FundusImage(image=img, path="test.jpg")
+    report = agent.assess(f_img)
+    assert not report.passed
+    assert any("overexposed" in issue for issue in report.issues)
