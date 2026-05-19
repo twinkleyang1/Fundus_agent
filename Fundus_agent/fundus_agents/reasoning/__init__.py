@@ -1,2 +1,3 @@
 from fundus_agents.reasoning.base import BaseDiseaseAgent
 from fundus_agents.reasoning.glaucoma import GlaucomaAgent
+from fundus_agents.reasoning.hypertensive import HypertensiveAgent
