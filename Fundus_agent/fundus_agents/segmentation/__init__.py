@@ -1,2 +1,5 @@
 from fundus_agents.segmentation.base import BaseSegmentationWorker, SubprocessSegmentationWorker
 from fundus_agents.segmentation.disc_cup import DiscCupWorker
+from fundus_agents.segmentation.vessels import VesselWorker
+from fundus_agents.segmentation.macula import MaculaWorker
+from fundus_agents.segmentation.lesions import LesionWorker
