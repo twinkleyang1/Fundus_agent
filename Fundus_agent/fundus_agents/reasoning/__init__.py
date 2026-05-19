@@ -2,3 +2,5 @@ from fundus_agents.reasoning.base import BaseDiseaseAgent
 from fundus_agents.reasoning.glaucoma import GlaucomaAgent
 from fundus_agents.reasoning.hypertensive import HypertensiveAgent
 from fundus_agents.reasoning.myopia import MyopiaAgent
+from fundus_agents.reasoning.diabetic_retinopathy import DiabeticRetinopathyAgent
+from fundus_agents.reasoning.amd import AMDAgent
