@@ -1,6 +1,5 @@
 """Master orchestrator: deterministic 4-phase pipeline."""
 import time
-import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from fundus_agents.contracts import FundusImage, StructuredReport, DiseaseFinding
 

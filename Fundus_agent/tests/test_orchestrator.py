@@ -15,10 +15,10 @@ class StubQualityAgent:
 
 class StubSegmentationWorker:
     def run(self, fundus_img):
-        h, w = fundus_img.image.size
-        disc = BinaryMask(data=np.zeros((w, h), dtype=np.uint8))
+        h, w = 512, 512
+        disc = BinaryMask(data=np.zeros((h, w), dtype=np.uint8))
         disc.data[100:200, 100:200] = 1
-        cup = BinaryMask(data=np.zeros((w, h), dtype=np.uint8))
+        cup = BinaryMask(data=np.zeros((h, w), dtype=np.uint8))
         cup.data[130:170, 130:170] = 1
         from fundus_agents.contracts import LesionMasks
         return SegmentationMasks(disc=disc, cup=cup, lesions=LesionMasks())
@@ -62,6 +62,82 @@ def test_orchestrator_full_pipeline():
     assert report.quality.passed
     assert len(report.findings) == 1
     assert report.findings[0].disease_code == "G"
+    assert "quality" in report.reasoning_trace
+    assert "segmentation_time" in report.reasoning_trace
+    assert "reasoning_time" in report.reasoning_trace
+    assert "total_time" in report.reasoning_trace
+
+
+def test_orchestrator_handles_segmentation_error():
+    class FailingSegWorker:
+        def run(self, fundus_img):
+            raise RuntimeError("GPU out of memory")
+
+    orch = MasterOrchestrator(
+        quality_agent=StubQualityAgent(),
+        segmentation_workers={"bad_worker": FailingSegWorker()},
+        disease_agents=[StubDiseaseAgent("G", "青光眼")],
+        report_agent=StubReportAgent(),
+    )
+    img = Image.new("RGB", (512, 512), color=(128, 80, 60))
+    f_img = FundusImage(image=img, path="test.jpg")
+    report = orch.run(f_img)
+    assert report.quality.passed
+    assert "seg_error_bad_worker" in report.reasoning_trace
+    assert len(report.findings) == 1  # disease agent still runs
+
+
+def test_orchestrator_handles_reasoning_error():
+    class FailingDiseaseAgent:
+        def __init__(self):
+            self.disease_code = "F"
+            self.disease_name = "FailingAgent"
+        def diagnose(self, fundus_img, masks):
+            raise RuntimeError("Model not loaded")
+
+    orch = MasterOrchestrator(
+        quality_agent=StubQualityAgent(),
+        segmentation_workers={"disc_cup": StubSegmentationWorker()},
+        disease_agents=[FailingDiseaseAgent()],
+        report_agent=StubReportAgent(),
+    )
+    img = Image.new("RGB", (512, 512), color=(128, 80, 60))
+    f_img = FundusImage(image=img, path="test.jpg")
+    report = orch.run(f_img)
+    assert report.quality.passed
+    assert "reasoning_error_F" in report.reasoning_trace
+    assert len(report.findings) == 1
+    assert report.findings[0].present is None  # error fallback
+
+
+def test_orchestrator_multiple_workers_and_agents():
+    class VesselWorker:
+        def run(self, fundus_img):
+            h, w = 512, 512  # matching test image size
+            vessels = BinaryMask(data=np.zeros((h, w), dtype=np.uint8))
+            vessels.data[200:400, 250:260] = 1
+            from fundus_agents.contracts import LesionMasks
+            return SegmentationMasks(vessels=vessels, lesions=LesionMasks())
+
+    orch = MasterOrchestrator(
+        quality_agent=StubQualityAgent(),
+        segmentation_workers={
+            "disc_cup": StubSegmentationWorker(),
+            "vessels": VesselWorker(),
+        },
+        disease_agents=[
+            StubDiseaseAgent("G", "青光眼"),
+            StubDiseaseAgent("D", "糖尿病视网膜病变"),
+        ],
+        report_agent=StubReportAgent(),
+    )
+    img = Image.new("RGB", (512, 512), color=(128, 80, 60))
+    f_img = FundusImage(image=img, path="test.jpg")
+    report = orch.run(f_img)
+    assert report.quality.passed
+    assert len(report.findings) == 2
+    codes = {f.disease_code for f in report.findings}
+    assert codes == {"G", "D"}
 
 
 def test_orchestrator_rejects_bad_quality():
