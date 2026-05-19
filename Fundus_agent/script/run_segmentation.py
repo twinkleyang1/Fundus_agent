@@ -16,6 +16,7 @@ def main():
     parser.add_argument("--input", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--target", default="disc_cup")
+    parser.add_argument("--device", default="cuda:0")
     args = parser.parse_args()
 
     # Load model via mmseg
@@ -25,15 +26,24 @@ def main():
     config_path = args.config
     if not config_path:
         import os, glob
-        work_dir = os.path.dirname(os.path.dirname(args.checkpoint))
-        configs = glob.glob(os.path.join(work_dir, "*.py"))
+        # Look in the same directory as checkpoint first
+        ckpt_dir = os.path.dirname(args.checkpoint)
+        configs = glob.glob(os.path.join(ckpt_dir, "*.py"))
         if configs:
             config_path = configs[0]
         else:
-            # Fallback: use checkpoint as base
-            config_path = args.checkpoint.replace(".pth", ".py")
+            # Look one level up
+            work_dir = os.path.dirname(ckpt_dir)
+            configs = glob.glob(os.path.join(work_dir, "*.py"))
+            if configs:
+                config_path = configs[0]
 
-    model = init_model(config_path, args.checkpoint, device="cuda:0")
+    if not config_path or not os.path.exists(config_path):
+        raise FileNotFoundError(
+            f"No config file found for checkpoint {args.checkpoint}"
+        )
+
+    model = init_model(config_path, args.checkpoint, device=args.device)
 
     # Run inference
     img = np.array(Image.open(args.input).convert("RGB"))

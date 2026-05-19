@@ -3,7 +3,7 @@ import os
 import glob
 from fundus_agents.contracts import FundusImage, SegmentationMasks, LesionMasks
 from fundus_agents.segmentation.base import BaseSegmentationWorker
-from fundus_agents.config import MMSEG_WORK_DIR, OPENMMLAB_PYTHON
+from fundus_agents.config import MMSEG_WORK_DIR, OPENMMLAB_PYTHON, SEGMENTATION_SCRIPT
 
 
 class DiscCupWorker(BaseSegmentationWorker):
@@ -19,12 +19,8 @@ class DiscCupWorker(BaseSegmentationWorker):
 
     def _run_subprocess(self, fundus_img: FundusImage) -> SegmentationMasks:
         from fundus_agents.segmentation.base import SubprocessSegmentationWorker
-        from fundus_agents.config import OPENMMLAB_PYTHON
 
-        script = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            "script", "run_segmentation.py"
-        )
+        script = SEGMENTATION_SCRIPT
 
         checkpoint = self._find_checkpoint()
 
@@ -42,9 +38,9 @@ class DiscCupWorker(BaseSegmentationWorker):
         candidates = glob.glob(pattern, recursive=True)
         segformer = [c for c in candidates if "segformer" in c.lower()]
         if segformer:
-            return segformer[0]
+            return max(segformer, key=os.path.getmtime)
         if candidates:
-            return candidates[0]
+            return max(candidates, key=os.path.getmtime)
         raise FileNotFoundError(f"No checkpoint found in {MMSEG_WORK_DIR}")
 
     def _run_direct(self, fundus_img: FundusImage) -> SegmentationMasks:

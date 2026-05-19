@@ -12,6 +12,7 @@ IMG_DIR = os.path.join(PROJECT_ROOT, "Dataset/ODIR-5K/preprocessed_images")
 CSV_PATH = os.path.join(PROJECT_ROOT, "Dataset/ODIR-5K/full_df.csv")
 MMSEG_ROOT = "/data/twinkle/app/mmsegmentation"
 MMSEG_WORK_DIR = os.path.join(MMSEG_ROOT, "zhang_work_dirs")
+SEGMENTATION_SCRIPT = os.path.join(FUNDUS_AGENT_ROOT, "script", "run_segmentation.py")
 
 # --- Model paths ---
 VL_MODELS = {

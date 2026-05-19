@@ -41,11 +41,16 @@ class SubprocessSegmentationWorker(BaseSegmentationWorker):
                 "--output", out_path,
                 "--target", self.target,
             ]
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=120
-            )
-            if result.returncode != 0:
-                raise RuntimeError(f"Segmentation failed: {result.stderr}")
+            try:
+                result = subprocess.run(
+                    cmd, capture_output=True, text=True, timeout=120
+                )
+                if result.returncode != 0:
+                    raise RuntimeError(f"Segmentation failed: {result.stderr}")
+            except subprocess.TimeoutExpired:
+                raise RuntimeError(
+                    f"Segmentation timed out after 120s (target={self.target})"
+                )
             masks_dict = np.load(out_path, allow_pickle=True).item()
             return self._dict_to_masks(masks_dict)
         finally:
