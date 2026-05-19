@@ -4,3 +4,5 @@ from fundus_agents.reasoning.hypertensive import HypertensiveAgent
 from fundus_agents.reasoning.myopia import MyopiaAgent
 from fundus_agents.reasoning.diabetic_retinopathy import DiabeticRetinopathyAgent
 from fundus_agents.reasoning.amd import AMDAgent
+from fundus_agents.reasoning.cataract import CataractAgent
+from fundus_agents.reasoning.other import OtherAgent
