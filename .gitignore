@@ -2,7 +2,10 @@
 *.pth
 *.safetensors
 *.bin
-checkpoint*/
+# ignore all files inside any checkpoints/ directory
+**/checkpoints/*
+# but allow placeholder .gitkeep files
+!**/checkpoints/.gitkeep
 
 # Python
 __pycache__/
