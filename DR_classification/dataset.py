@@ -1,10 +1,14 @@
 """APTOS-2019 dataset loader with augmentations."""
+import logging
 import os
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 from PIL import Image
 import torch
-from torch.utils.data import Dataset
+from sklearn.model_selection import StratifiedShuffleSplit
+from torch.utils.data import DataLoader, Dataset
+from torchvision import transforms
 
 
 class APTOSDataset(Dataset):
@@ -29,7 +33,11 @@ class APTOSDataset(Dataset):
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
         img_path = os.path.join(self.img_dir, row["id_code"] + ".png")
-        img = Image.open(img_path).convert("RGB")
+        try:
+            img = Image.open(img_path).convert("RGB")
+        except FileNotFoundError:
+            logging.warning("Image not found: %s, returning blank image", img_path)
+            img = Image.new("RGB", (224, 224), (0, 0, 0))
 
         label = int(row["diagnosis"])
         if self.binary:
@@ -43,11 +51,9 @@ class APTOSDataset(Dataset):
 
 def get_transforms(train=True, input_size=512):
     """Build torchvision transforms for training or validation."""
-    from torchvision import transforms
 
     if train:
         return transforms.Compose([
-            transforms.Resize((input_size, input_size)),
             transforms.RandomHorizontalFlip(),
             transforms.RandomRotation(30),
             transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.05),
@@ -65,10 +71,8 @@ def get_transforms(train=True, input_size=512):
         ])
 
 
-def load_data(csv_path, img_dir, binary=False, input_size=512, val_split=0.2, seed=42):
+def load_data(csv_path, img_dir, binary=False, input_size=512, val_split=0.2, seed=42, batch_size=32):
     """Load csv, split into train/val, return DataLoaders."""
-    from sklearn.model_selection import StratifiedShuffleSplit
-    from torch.utils.data import DataLoader
 
     df = pd.read_csv(csv_path)
     sss = StratifiedShuffleSplit(n_splits=1, test_size=val_split, random_state=seed)
@@ -80,7 +84,7 @@ def load_data(csv_path, img_dir, binary=False, input_size=512, val_split=0.2, se
     train_ds = APTOSDataset(train_df, img_dir, get_transforms(train=True, input_size=input_size), binary=binary)
     val_ds = APTOSDataset(val_df, img_dir, get_transforms(train=False, input_size=input_size), binary=binary)
 
-    train_loader = DataLoader(train_ds, batch_size=32, shuffle=True, num_workers=4, pin_memory=True)
-    val_loader = DataLoader(val_ds, batch_size=32, shuffle=False, num_workers=4, pin_memory=True)
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
+    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
 
     return train_loader, val_loader, train_df, val_df
