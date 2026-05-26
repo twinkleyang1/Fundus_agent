@@ -1,75 +1,69 @@
-"""Diabetic Retinopathy agent: classifier on lesion features, falls back to VL."""
-import numpy as np
+"""Diabetic Retinopathy agent: two-stage EfficientNet-B3 classifier."""
+import subprocess
+import tempfile
+import json
+import os
 from fundus_agents.reasoning.base import BaseDiseaseAgent
 from fundus_agents.contracts import FundusImage, SegmentationMasks, DiseaseFinding
+from fundus_agents.config import DR_CLASSIFY_PYTHON, DR_CLASSIFY_SCRIPT
 
 
 class DiabeticRetinopathyAgent(BaseDiseaseAgent):
-    def __init__(self, vl_model=None):
+    def __init__(self, device="cuda:0"):
         super().__init__("D", "糖尿病视网膜病变")
-        self.vl_model = vl_model
+        self.device = device
 
     def diagnose(self, fundus_img: FundusImage,
-                 masks: SegmentationMasks) -> DiseaseFinding:
-        # If lesion masks available, use feature-based classifier
-        if masks.lesions.hemorrhages.available or \
-           masks.lesions.hard_exudates.available:
-            return self._classifier_diagnose(masks)
+                 masks: SegmentationMasks = None) -> DiseaseFinding:
+        # Save image to temp file
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+            img_path = f.name
+            fundus_img.image.save(img_path)
 
-        # Fallback to VL model
-        if self.vl_model is not None:
-            return self._vl_diagnose(fundus_img)
-        return self._insufficient_data()
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            out_path = f.name
 
-    def _classifier_diagnose(self, masks: SegmentationMasks) -> DiseaseFinding:
-        heme_area = masks.lesions.hemorrhages.area
-        exudate_area = masks.lesions.hard_exudates.area
-        ma_count = self._count_lesions(masks.lesions.microaneurysms)
+        try:
+            cmd = [
+                DR_CLASSIFY_PYTHON, DR_CLASSIFY_SCRIPT,
+                "--input", img_path,
+                "--output", out_path,
+                "--device", self.device,
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
 
-        features = {
-            "heme_area": heme_area,
-            "exudate_area": exudate_area,
-            "ma_count": ma_count,
-        }
+            if result.returncode != 0:
+                raise RuntimeError(f"DR classification failed: {result.stderr}")
 
-        present = heme_area > 20 or exudate_area > 20 or ma_count > 5
-        confidence = 0.75 if present else 0.85
+            with open(out_path) as f:
+                data = json.load(f)
 
-        return DiseaseFinding(
-            disease_code=self.disease_code,
-            disease_name=self.disease_name,
-            present=present, confidence=confidence,
-            evidence=[f"Lesion features: heme_area={heme_area:.1f}, "
-                      f"exudate_area={exudate_area:.1f}, ma_count={ma_count}"],
-            metrics=features
-        )
-
-    def _vl_diagnose(self, fundus_img: FundusImage) -> DiseaseFinding:
-        return DiseaseFinding(
-            disease_code=self.disease_code, disease_name=self.disease_name,
-            present=None, confidence=0.0,
-            evidence=["VL model not configured for DR"], metrics={}
-        )
-
-    def _count_lesions(self, mask) -> int:
-        if mask is None or mask.data is None:
-            return 0
-        # Simple connected component count
-        data = mask.data if hasattr(mask, 'data') else mask
-        if data is None:
-            return 0
-        labeled = np.zeros_like(data, dtype=int)
-        label_id = 0
-        h, w = data.shape
-        for y in range(h):
-            for x in range(w):
-                if data[y, x] > 0 and labeled[y, x] == 0:
-                    label_id += 1
-                    # Flood fill
-                    stack = [(y, x)]
-                    while stack:
-                        py, px = stack.pop()
-                        if 0 <= py < h and 0 <= px < w and data[py, px] > 0 and labeled[py, px] == 0:
-                            labeled[py, px] = label_id
-                            stack.extend([(py-1, px), (py+1, px), (py, px-1), (py, px+1)])
-        return label_id
+            if data["present"]:
+                return DiseaseFinding(
+                    disease_code=self.disease_code,
+                    disease_name=self.disease_name,
+                    present=True,
+                    confidence=data["confidence"],
+                    evidence=[f"DR severity grade {data['severity']}/4",
+                              f"P(has_DR)={data['prob_has_dr']:.4f}"],
+                    metrics={
+                        "severity": data["severity"],
+                        "severity_probs": data.get("severity_probs", []),
+                        "prob_has_dr": data["prob_has_dr"],
+                    },
+                )
+            else:
+                return DiseaseFinding(
+                    disease_code=self.disease_code,
+                    disease_name=self.disease_name,
+                    present=False,
+                    confidence=data["confidence"],
+                    evidence=[f"No DR detected, P(has_DR)={data['prob_has_dr']:.4f}"],
+                    metrics={"prob_has_dr": data["prob_has_dr"]},
+                )
+        except subprocess.TimeoutExpired:
+            return self._insufficient_data()
+        finally:
+            for p in [img_path, out_path]:
+                if os.path.exists(p):
+                    os.unlink(p)

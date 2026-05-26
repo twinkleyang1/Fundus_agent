@@ -13,6 +13,8 @@ CSV_PATH = os.path.join(PROJECT_ROOT, "Dataset/ODIR-5K/full_df.csv")
 MMSEG_ROOT = "/data/twinkle/app/mmsegmentation"
 MMSEG_WORK_DIR = os.path.join(MMSEG_ROOT, "zhang_work_dirs")
 SEGMENTATION_SCRIPT = os.path.join(FUNDUS_AGENT_ROOT, "script", "run_segmentation.py")
+DR_CLASSIFY_PYTHON = "/data/twinkle/anaconda3/envs/DR_classification/bin/python"
+DR_CLASSIFY_SCRIPT = os.path.join(PROJECT_ROOT, "DR_classification", "infer.py")
 
 # --- Model paths ---
 VL_MODELS = {
