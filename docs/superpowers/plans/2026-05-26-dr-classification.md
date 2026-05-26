@@ -27,7 +27,7 @@ conda create -n DR_classification python=3.11 -y
 Run:
 ```bash
 conda activate DR_classification
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+conda install pytorch torchvision pytorch-cuda=12.1 -c pytorch -c nvidia -y
 pip install timm scikit-learn pandas matplotlib tqdm opencv-python-headless
 ```
 
