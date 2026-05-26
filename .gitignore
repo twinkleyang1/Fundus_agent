@@ -1,0 +1,29 @@
+# Large models and checkpoints
+*.pth
+*.safetensors
+*.bin
+checkpoint*/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Superpowers
+.superpowers/
+.worktrees/
+
+# IDE
+.vscode/
+.idea/
+
+# Data (large files)
+Dataset/
+
+# Logs
+*.log
+
+# Temporary
+/tmp/
+*.tmp
