@@ -60,8 +60,8 @@ def load_severity_data(csv_path, img_dir, val_split=0.2, seed=42):
     train_ds = SeverityAPTOSDataset(train_df, img_dir, get_transforms(train=True))
     val_ds = SeverityAPTOSDataset(val_df, img_dir, get_transforms(train=False))
 
-    train_loader = DataLoader(train_ds, batch_size=32, shuffle=True, num_workers=4, pin_memory=True)
-    val_loader = DataLoader(val_ds, batch_size=32, shuffle=False, num_workers=4, pin_memory=True)
+    train_loader = DataLoader(train_ds, batch_size=20, shuffle=True, num_workers=0, pin_memory=True)
+    val_loader = DataLoader(val_ds, batch_size=20, shuffle=False, num_workers=0, pin_memory=True)
 
     return train_loader, val_loader
 
@@ -108,52 +108,64 @@ def validate(model, loader, criterion, device):
 
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
+    print(f"Using device: {device}", flush=True)
 
     csv_path = "/home/twinkle/app/LLM_paper/Dataset/APTOS-2019/train.csv"
     img_dir = "/home/twinkle/app/LLM_paper/Dataset/APTOS-2019/train_images"
-    save_path = "/home/twinkle/app/LLM_paper/DR_classification/checkpoints/dr_severity_b3.pth"
+    save_path = os.path.join(os.path.dirname(__file__), "checkpoints", "dr_severity_b3.pth")
 
+    print("Loading data...", flush=True)
     train_loader, val_loader = load_severity_data(csv_path, img_dir)
+    print(f"  Train batches: {len(train_loader)}, Val batches: {len(val_loader)}", flush=True)
 
+    print("Creating model...", flush=True)
     model = create_model(num_classes=4).to(device)
+    if torch.cuda.device_count() > 1:
+        print(f"  Wrapping with DataParallel across {torch.cuda.device_count()} GPUs", flush=True)
+        model = nn.DataParallel(model)
+    print("  Model ready", flush=True)
+
     optimizer = AdamW(model.parameters(), lr=1e-4, weight_decay=1e-4)
     scheduler = CosineAnnealingLR(optimizer, T_max=50)
 
-    # Compute class weights for imbalanced severity classes
-    all_labels_in_train = []
-    for _, labels in train_loader:
-        all_labels_in_train.extend(labels.tolist())
-    class_counts = np.bincount(all_labels_in_train, minlength=4)
-    class_weights = 1.0 / (class_counts + 1e-6)
+    # Compute class weights from DataFrame directly (instant, no DataLoader iteration)
+    import pandas as pd
+    df = pd.read_csv(csv_path)
+    pos_df = df[df["diagnosis"] >= 1]
+    labels_0_3 = pos_df["diagnosis"].values - 1
+    class_counts = np.bincount(labels_0_3, minlength=4)
+    print(f"  Class counts (0-3): {class_counts}", flush=True)
+    class_weights = 1.0 / (class_counts.astype(np.float64) + 1e-6)
     class_weights = class_weights / class_weights.sum() * 4
     class_weights = torch.tensor(class_weights, dtype=torch.float).to(device)
     criterion = nn.CrossEntropyLoss(weight=class_weights)
+    print(f"  Class weights: {class_weights.tolist()}", flush=True)
 
     best_qwk = -1
     patience_counter = 0
 
     for epoch in range(50):
+        print(f"Epoch {epoch+1}/50 starting...", flush=True)
         train_loss = train_one_epoch(model, train_loader, optimizer, criterion, device)
         val_metrics = validate(model, val_loader, criterion, device)
         scheduler.step()
 
         print(f"Epoch {epoch+1:2d} | train_loss={train_loss:.4f} | "
               f"val_loss={val_metrics['loss']:.4f} | val_acc={val_metrics['accuracy']:.4f} | "
-              f"val_qwk={val_metrics['qwk']:.4f}")
+              f"val_qwk={val_metrics['qwk']:.4f}", flush=True)
 
         if val_metrics["qwk"] > best_qwk:
             best_qwk = val_metrics["qwk"]
             patience_counter = 0
             save_checkpoint(model, optimizer, epoch + 1, val_metrics, save_path)
-            print(f"  -> saved best model (qwk={best_qwk:.4f})")
+            print(f"  -> saved best model (qwk={best_qwk:.4f})", flush=True)
         else:
             patience_counter += 1
             if patience_counter >= 10:
-                print(f"Early stopping at epoch {epoch+1}")
+                print(f"Early stopping at epoch {epoch+1}", flush=True)
                 break
 
-    print(f"Training complete. Best val QWK: {best_qwk:.4f}")
+    print(f"Training complete. Best val QWK: {best_qwk:.4f}", flush=True)
 
 
 if __name__ == "__main__":

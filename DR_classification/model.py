@@ -19,8 +19,9 @@ def create_model(num_classes, pretrained=True):
 
 
 def save_checkpoint(model, optimizer, epoch, metrics, path):
+    state_dict = model.module.state_dict() if hasattr(model, "module") else model.state_dict()
     torch.save({
-        "model_state_dict": model.state_dict(),
+        "model_state_dict": state_dict,
         "optimizer_state_dict": optimizer.state_dict(),
         "epoch": epoch,
         "metrics": metrics,

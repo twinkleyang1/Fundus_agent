@@ -71,7 +71,7 @@ def get_transforms(train=True, input_size=512):
         ])
 
 
-def load_data(csv_path, img_dir, binary=False, input_size=512, val_split=0.2, seed=42, batch_size=32):
+def load_data(csv_path, img_dir, binary=False, input_size=512, val_split=0.2, seed=42, batch_size=16, num_workers=0):
     """Load csv, split into train/val, return DataLoaders."""
 
     df = pd.read_csv(csv_path)
@@ -84,7 +84,7 @@ def load_data(csv_path, img_dir, binary=False, input_size=512, val_split=0.2, se
     train_ds = APTOSDataset(train_df, img_dir, get_transforms(train=True, input_size=input_size), binary=binary)
     val_ds = APTOSDataset(val_df, img_dir, get_transforms(train=False, input_size=input_size), binary=binary)
 
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
-    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True)
+    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
 
     return train_loader, val_loader, train_df, val_df

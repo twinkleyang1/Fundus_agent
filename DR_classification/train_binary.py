@@ -62,7 +62,7 @@ def main():
 
     csv_path = "/home/twinkle/app/LLM_paper/Dataset/APTOS-2019/train.csv"
     img_dir = "/home/twinkle/app/LLM_paper/Dataset/APTOS-2019/train_images"
-    save_path = "/home/twinkle/app/LLM_paper/DR_classification/checkpoints/dr_binary_b3.pth"
+    save_path = os.path.join(os.path.dirname(__file__), "checkpoints", "dr_binary_b3.pth")
 
     train_loader, val_loader, _, _ = load_data(csv_path, img_dir, binary=True)
 
